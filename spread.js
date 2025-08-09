@@ -1,63 +1,132 @@
 /**
  * Tarot Spread Algorithm
- * Implements random shuffling and spread generation
+ * Implements seeded random shuffling and spread generation
  */
 
 /**
- * Generate random integer between min and max (inclusive)
+ * Seeded random number generator (Linear Congruential Generator)
+ * @param {string} seed - seed string
+ * @returns {Function} random function that returns 0-1
+ */
+function createSeededRandom(seed) {
+    // Convert seed string to number
+    let seedValue = 0;
+    for (let i = 0; i < seed.length; i++) {
+        seedValue = ((seedValue << 5) - seedValue + seed.charCodeAt(i)) & 0xffffffff;
+    }
+    seedValue = Math.abs(seedValue);
+    
+    return function() {
+        seedValue = (seedValue * 9301 + 49297) % 233280;
+        return seedValue / 233280;
+    };
+}
+
+/**
+ * Generate random integer between min and max (inclusive) using seeded random
+ * @param {Function} randomFn - seeded random function
  * @param {number} min - minimum value
  * @param {number} max - maximum value
  * @returns {number} random integer
  */
-function getRandomInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+function getSeededRandomInt(randomFn, min, max) {
+    return Math.floor(randomFn() * (max - min + 1)) + min;
 }
 
 /**
- * Advanced cryptographically-inspired shuffle algorithm
+ * Generate compact cryptographically secure seed
+ * @returns {string} compact random seed string
+ */
+function generateSeed() {
+    const crypto = window.crypto || window.msCrypto;
+    
+    if (crypto && crypto.getRandomValues) {
+        // Use compact but secure approach
+        const array = new Uint32Array(3); // Only 12 bytes for compactness
+        crypto.getRandomValues(array);
+        
+        // Convert to compact base36 and combine with timestamp
+        const cryptoPart = Array.from(array, x => x.toString(36)).join('');
+        const timestamp = Date.now().toString(36);
+        const perfNow = typeof performance !== 'undefined' && performance.now 
+            ? Math.floor(performance.now() * 1000).toString(36)
+            : Math.floor(Math.random() * 1000000).toString(36);
+            
+        return `${timestamp}${cryptoPart}${perfNow}`;
+    } else {
+        // Compact fallback
+        const timestamp = Date.now().toString(36);
+        const random1 = Math.floor(Math.random() * 0xffffffff).toString(36);
+        const random2 = Math.floor(Math.random() * 0xffffffff).toString(36);
+        return `${timestamp}${random1}${random2}`;
+    }
+}
+
+/**
+ * Generate spread from seed (deterministic)
+ * @param {string} seed - seed string for reproducible randomness
  * @param {number} deckSize - total number of cards (default 72)
  * @returns {Array} array of card objects with index and orientation
  */
-function generateRandomSpread(deckSize = 72) {
+function generateSpreadFromSeed(seed, deckSize = 72) {
+    const random = createSeededRandom(seed);
+    
     // Initialize deck with all cards in order
     let deck = [];
     for (let i = 0; i < deckSize; i++) {
         deck.push({ index: i, orientation: 1 });
     }
     
-    // Fisher-Yates shuffle algorithm - guarantees no duplicates
+    // Seeded Fisher-Yates shuffle algorithm
     for (let i = deck.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = Math.floor(random() * (i + 1));
         [deck[i], deck[j]] = [deck[j], deck[i]];
     }
     
     // Additional shuffle passes for more randomness
     for (let pass = 0; pass < 3; pass++) {
         for (let i = deck.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
+            const j = Math.floor(random() * (i + 1));
             [deck[i], deck[j]] = [deck[j], deck[i]];
         }
     }
     
-    // Random orientation assignment
+    // Seeded orientation assignment
     for (let i = 0; i < deck.length; i++) {
-        deck[i].orientation = Math.random() < 0.5 ? 1 : -1;
+        deck[i].orientation = random() < 0.5 ? 1 : -1;
     }
     
     return deck;
 }
 
 /**
- * Create a new random spread
- * @returns {Object} object containing deck array and metadata
+ * Legacy function - now generates seed and calls generateSpreadFromSeed
+ * @param {number} deckSize - total number of cards (default 72)
+ * @returns {Array} array of card objects with index and orientation
+ */
+function generateRandomSpread(deckSize = 72) {
+    const seed = generateSeed();
+    return generateSpreadFromSeed(seed, deckSize);
+}
+
+/**
+ * Create a new random spread with seed (memory optimized)
+ * @returns {Object} object containing seed and metadata (deck generated on-demand)
  */
 function createSpread() {
-    const deck = generateRandomSpread(72);
+    const seed = generateSeed();
     
+    // Don't store the full deck in memory - regenerate when needed
     return {
-        deck: deck,
+        seed: seed,
         totalCards: 72,
-        shuffledCards: deck.length,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        // Generate deck on-demand via getter to save memory
+        get deck() {
+            return generateSpreadFromSeed(this.seed, this.totalCards);
+        },
+        get shuffledCards() {
+            return this.totalCards;
+        }
     };
 }

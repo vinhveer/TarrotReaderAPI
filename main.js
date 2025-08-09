@@ -73,9 +73,10 @@ async function handleCreateSpread() {
         // Generate random spread
         const spreadResult = createSpread();
         
-        // Create JWT payload
+        // Create compact JWT payload with seed only
         const payload = {
-            deck: spreadResult.deck,
+            seed: spreadResult.seed,
+            size: spreadResult.totalCards,
             ts: Date.now()
         };
         
@@ -85,7 +86,7 @@ async function handleCreateSpread() {
         // Return response
         const response = {
             token: token,
-            deck_size: spreadResult.deck.length
+            deck_size: spreadResult.totalCards
         };
         
         return JSON.stringify(response);
@@ -105,13 +106,20 @@ async function handleSpreadRead(token, chooseParam) {
         // Load tarot data
         const tarot = await loadTarotData();
         
-        // Verify JWT and get deck
+        // Verify JWT and get payload
         const payload = await verifyJWT(token, JWT_SECRET);
-        const deck = payload.deck;
         
-        if (!deck || !Array.isArray(deck)) {
-            throw new Error('Invalid deck data in token');
+        if (!payload.seed) {
+            // Check if this is old format token with deck data
+            if (payload.deck && Array.isArray(payload.deck)) {
+                throw new Error('Invalid token: missing seed data - old token format detected');
+            }
+            throw new Error('Invalid token: missing seed data');
         }
+        
+        // Regenerate deck from seed
+        const deckSize = payload.size || 72;
+        const deck = generateSpreadFromSeed(payload.seed, deckSize);
         
         // Parse choose parameter (comma-separated indices)
         const chosenIndices = chooseParam
@@ -163,18 +171,18 @@ async function handleSpreadRead(token, chooseParam) {
  * Parse URL and route to appropriate handler
  */
 async function handleRouting() {
-    const pathname = window.location.pathname;
+    const hash = window.location.hash.slice(1); // Remove # character
     const search = window.location.search;
     
     try {
         let result;
         
-        if (pathname === '/create-spread') {
+        if (hash === 'create-spread') {
             // Create new spread
             result = await handleCreateSpread();
-        } else if (pathname.startsWith('/spread/')) {
+        } else if (hash.startsWith('spread/')) {
             // Read existing spread
-            const token = pathname.substring('/spread/'.length);
+            const token = hash.substring('spread/'.length);
             if (!token) {
                 throw new Error('Missing token in URL');
             }
@@ -187,10 +195,14 @@ async function handleRouting() {
         } else {
             // Default route
             result = JSON.stringify({
-                message: 'Tarot Reader API',
+                message: 'Tarot Reader API - GitHub Pages Compatible',
                 routes: [
-                    '/create-spread - Create new tarot spread',
-                    '/spread/<token>?choose=0,1,2 - Read cards from spread'
+                    '#create-spread - Create new tarot spread',
+                    '#spread/<token>?choose=0,1,2 - Read cards from spread'
+                ],
+                examples: [
+                    'Try: ' + window.location.origin + window.location.pathname + '#create-spread',
+                    'Then: ' + window.location.origin + window.location.pathname + '#spread/YOUR_TOKEN?choose=0,1,2'
                 ]
             });
         }
@@ -209,4 +221,5 @@ async function handleRouting() {
  */
 if (!window.IS_TEST) {
     document.addEventListener('DOMContentLoaded', handleRouting);
+    window.addEventListener('hashchange', handleRouting);
 }
