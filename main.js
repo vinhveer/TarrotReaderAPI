@@ -230,7 +230,7 @@ async function handleRouting() {
             });
         }
         
-        // Output result to page
+        // Always output JSON to page
         document.body.innerHTML = `<pre>${result}</pre>`;
         
     } catch (error) {
