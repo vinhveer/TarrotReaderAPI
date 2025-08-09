@@ -152,6 +152,107 @@ module.exports = async (req, res) => {
             res.setHeader('Content-Type', 'application/json');
             res.setHeader('Content-Disposition', `attachment; filename="tarot-${Date.now()}.json"`);
             res.status(200).json(response);
+        } else if (format === 'html') {
+            // Return HTML for GPT consumption
+            res.setHeader('Content-Type', 'text/html');
+            
+            // Get base URL
+            const protocol = req.headers['x-forwarded-proto'] || 'https';
+            const host = req.headers.host;
+            const baseUrl = `${protocol}://${host}`;
+            
+            let html = `<!DOCTYPE html>
+<html>
+<head>
+    <title>Tarot Reading - Seed: ${cleanSeed}</title>
+</head>
+<body>
+    <h1>Tarot Reading</h1>
+    
+    <h2>Spread Information</h2>
+    <p><strong>Seed:</strong> ${cleanSeed}</p>
+    <p><strong>Total Cards in Deck:</strong> ${deck.length}</p>
+    <p><strong>Requested Cards:</strong> ${choose || 'none specified'}</p>
+    <p><strong>Valid Card Positions:</strong> ${validIndices.length > 0 ? validIndices.join(', ') : 'none'}</p>
+`;
+
+            if (validIndices.length === 0) {
+                html += `
+    <h2>No Cards Selected</h2>
+    <p>No valid card indices were provided. Please specify which cards to draw using the "choose" parameter.</p>
+    
+    <h3>Examples</h3>
+    <ul>
+        <li><a href="${baseUrl}/api/spread/${cleanSeed}?choose=0&format=html">Draw first card (position 0)</a></li>
+        <li><a href="${baseUrl}/api/spread/${cleanSeed}?choose=0,1,2&format=html">Draw three cards (positions 0, 1, 2)</a></li>
+        <li><a href="${baseUrl}/api/spread/${cleanSeed}?choose=0,1,2,3,4,5,6,7,8,9&format=html">Draw ten cards (Celtic Cross)</a></li>
+    </ul>
+    
+    <h3>Instructions</h3>
+    <p>Add "?choose=X,Y,Z&format=html" to the URL where X, Y, Z are card positions from 0 to 71.</p>
+`;
+            } else {
+                html += `
+    <h2>Your Cards</h2>
+`;
+                
+                // Get chosen cards for HTML
+                validIndices.forEach((deckIndex, cardPosition) => {
+                    const deckCard = deck[deckIndex];
+                    const cardIndex = deckCard.index;
+                    const orientation = deckCard.orientation;
+                    
+                    // Get card from tarot data
+                    if (cardIndex >= 0 && cardIndex < tarot.cards.length) {
+                        const rawCard = tarot.cards[cardIndex];
+                        const normalizedCard = normalizeCard(rawCard);
+                        
+                        // Apply orientation
+                        const meaning = orientation === 1 
+                            ? normalizedCard.meaning_upright 
+                            : normalizedCard.meaning_reversed;
+                        
+                        const orientationText = orientation === 1 ? 'Upright' : 'Reversed';
+                        
+                        html += `
+    <div>
+        <h3>Card ${cardPosition + 1}: ${normalizedCard.name}</h3>
+        <p><strong>Position in Spread:</strong> ${deckIndex}</p>
+        <p><strong>Orientation:</strong> ${orientationText}</p>
+        <p><strong>Arcana:</strong> ${normalizedCard.arcana || 'Unknown'}</p>
+        <p><strong>Suit:</strong> ${normalizedCard.suit || 'N/A'}</p>
+        <p><strong>Number:</strong> ${normalizedCard.number || 'N/A'}</p>
+        <p><strong>Meaning:</strong> ${meaning}</p>
+    </div>
+    <hr>
+`;
+                    }
+                });
+                
+                html += `
+    <h3>Additional Actions</h3>
+    <ul>
+        <li><a href="${baseUrl}/api/spread/${cleanSeed}?choose=0,1,2,3,4,5,6,7,8,9&format=html">Draw 10 cards (Celtic Cross)</a></li>
+        <li><a href="${baseUrl}/api/spread/${cleanSeed}?choose=${Array.from({length: 22}, (_, i) => i).join(',')}&format=html">Draw all Major Arcana positions</a></li>
+    </ul>
+`;
+            }
+            
+            html += `
+    <h2>Navigation</h2>
+    <ul>
+        <li><a href="${baseUrl}/api/create-spread?format=html">Create New Spread</a></li>
+        <li><a href="${baseUrl}/api/index?format=html">API Documentation</a></li>
+        <li><a href="${baseUrl}/api/spread/${cleanSeed}?choose=${choose || '0,1,2'}">View JSON Version</a></li>
+    </ul>
+    
+    <h2>About This Reading</h2>
+    <p>This tarot reading was generated using seed "${cleanSeed}" which deterministically creates a shuffled 72-card deck. The same seed will always produce the same card order and orientations, making readings reproducible and shareable.</p>
+    
+</body>
+</html>`;
+            
+            res.status(200).send(html);
         } else if (format === 'raw') {
             // Pure JSON response
             res.setHeader('Content-Type', 'application/json');
@@ -162,7 +263,39 @@ module.exports = async (req, res) => {
         }
         
     } catch (error) {
-        const errorResponse = { error: error.message };
-        res.status(400).json(errorResponse);
+        const { format } = req.query;
+        
+        if (format === 'html') {
+            const protocol = req.headers['x-forwarded-proto'] || 'https';
+            const host = req.headers.host;
+            const baseUrl = `${protocol}://${host}`;
+            
+            const errorHtml = `<!DOCTYPE html>
+<html>
+<head><title>Error Reading Spread</title></head>
+<body>
+    <h1>Error Reading Spread</h1>
+    <p><strong>Error:</strong> ${error.message}</p>
+    <p><strong>Seed:</strong> ${req.query.seed || 'not provided'}</p>
+    
+    <h2>Troubleshooting</h2>
+    <ul>
+        <li>Check that your seed is correct and complete</li>
+        <li>Ensure the URL wasn't modified or corrupted</li>
+        <li>Try creating a new spread if the seed is invalid</li>
+    </ul>
+    
+    <h2>Actions</h2>
+    <ul>
+        <li><a href="${baseUrl}/api/create-spread?format=html">Create New Spread</a></li>
+        <li><a href="${baseUrl}/api/index?format=html">Back to Documentation</a></li>
+    </ul>
+</body>
+</html>`;
+            res.status(400).send(errorHtml);
+        } else {
+            const errorResponse = { error: error.message };
+            res.status(400).json(errorResponse);
+        }
     }
 };
