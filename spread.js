@@ -34,32 +34,15 @@ function getSeededRandomInt(randomFn, min, max) {
 }
 
 /**
- * Generate compact cryptographically secure seed
+ * Generate ultra-compact random seed (no security needed)
  * @returns {string} compact random seed string
  */
 function generateSeed() {
-    const crypto = window.crypto || window.msCrypto;
-    
-    if (crypto && crypto.getRandomValues) {
-        // Use compact but secure approach
-        const array = new Uint32Array(3); // Only 12 bytes for compactness
-        crypto.getRandomValues(array);
-        
-        // Convert to compact base36 and combine with timestamp
-        const cryptoPart = Array.from(array, x => x.toString(36)).join('');
-        const timestamp = Date.now().toString(36);
-        const perfNow = typeof performance !== 'undefined' && performance.now 
-            ? Math.floor(performance.now() * 1000).toString(36)
-            : Math.floor(Math.random() * 1000000).toString(36);
-            
-        return `${timestamp}${cryptoPart}${perfNow}`;
-    } else {
-        // Compact fallback
-        const timestamp = Date.now().toString(36);
-        const random1 = Math.floor(Math.random() * 0xffffffff).toString(36);
-        const random2 = Math.floor(Math.random() * 0xffffffff).toString(36);
-        return `${timestamp}${random1}${random2}`;
-    }
+    // Ultra compact: just timestamp + 2 random numbers
+    const t = Date.now().toString(36);
+    const r1 = Math.floor(Math.random() * 0xffffff).toString(36);
+    const r2 = Math.floor(Math.random() * 0xffffff).toString(36);
+    return `${t}${r1}${r2}`;
 }
 
 /**

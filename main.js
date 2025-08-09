@@ -3,8 +3,7 @@
  * Handles routing and tarot card operations
  */
 
-// Hardcoded secret for JWT (in production, this should be more secure)
-const JWT_SECRET = 'tarot-reader-secret-2024';
+// No JWT needed - using seeds directly for ultra-compact URLs
 
 // Global variable to store tarot data
 let tarotData = null;
@@ -73,20 +72,11 @@ async function handleCreateSpread() {
         // Generate random spread
         const spreadResult = createSpread();
         
-        // Create compact JWT payload with seed only
-        const payload = {
-            seed: spreadResult.seed,
-            size: spreadResult.totalCards,
-            ts: Date.now()
-        };
-        
-        // Create JWT token
-        const token = await createJWT(payload, JWT_SECRET);
-        
-        // Return response
+        // Return response with seed directly (no JWT)
         const response = {
-            token: token,
-            deck_size: spreadResult.totalCards
+            seed: spreadResult.seed,
+            deck_size: spreadResult.totalCards,
+            url: `${window.location.origin}${window.location.pathname}#spread/${spreadResult.seed}?choose=0,1,2`
         };
         
         return JSON.stringify(response);
@@ -96,30 +86,31 @@ async function handleCreateSpread() {
 }
 
 /**
- * Handle spread/<token> route
- * @param {string} token - JWT token from URL
+ * Handle spread/<seed> route
+ * @param {string} seed - seed string from URL
  * @param {string} chooseParam - choose parameter from query string
  * @returns {Promise<string>} JSON response
  */
-async function handleSpreadRead(token, chooseParam) {
+async function handleSpreadRead(seed, chooseParam) {
     try {
         // Load tarot data
         const tarot = await loadTarotData();
         
-        // Verify JWT and get payload
-        const payload = await verifyJWT(token, JWT_SECRET);
-        
-        if (!payload.seed) {
-            // Check if this is old format token with deck data
-            if (payload.deck && Array.isArray(payload.deck)) {
-                throw new Error('Invalid token: missing seed data - old token format detected');
-            }
-            throw new Error('Invalid token: missing seed data');
+        // Use seed directly (no JWT needed)
+        if (!seed || typeof seed !== 'string') {
+            throw new Error('Invalid or missing seed. Please create a new spread.');
         }
         
+        // Clean seed (remove any URL artifacts)
+        seed = seed.trim();
+        
         // Regenerate deck from seed
-        const deckSize = payload.size || 72;
-        const deck = generateSpreadFromSeed(payload.seed, deckSize);
+        const deck = generateSpreadFromSeed(seed, 72);
+        
+        // Verify deck generation worked
+        if (!deck || deck.length !== 72) {
+            throw new Error(`Deck generation failed. Seed: ${seed}, Generated: ${deck ? deck.length : 'null'} cards`);
+        }
         
         // Parse choose parameter (comma-separated indices)
         const chosenIndices = chooseParam
@@ -158,7 +149,15 @@ async function handleSpreadRead(token, chooseParam) {
         });
         
         const response = {
-            chosen: chosen
+            chosen: chosen,
+            ...(chosen.length === 0 && {
+                info: {
+                    total_cards: deck.length,
+                    seed_used: seed,
+                    choose_param: chooseParam || 'not provided',
+                    message: chooseParam ? 'No valid card indices found' : 'Add ?choose=0,1,2 to select cards'
+                }
+            })
         };
         
         return JSON.stringify(response);
@@ -182,27 +181,51 @@ async function handleRouting() {
             result = await handleCreateSpread();
         } else if (hash.startsWith('spread/')) {
             // Read existing spread
-            const token = hash.substring('spread/'.length);
-            if (!token) {
-                throw new Error('Missing token in URL');
+            let seedPart = hash.substring('spread/'.length);
+            if (!seedPart) {
+                throw new Error('Missing seed in URL');
             }
             
-            // Parse query parameters
-            const urlParams = new URLSearchParams(search);
-            const chooseParam = urlParams.get('choose');
+            // Split seed from any query parameters that might be in the hash
+            const queryIndex = seedPart.indexOf('?');
+            let seed, hashQuery = '';
+            if (queryIndex !== -1) {
+                seed = seedPart.substring(0, queryIndex);
+                hashQuery = seedPart.substring(queryIndex + 1);
+            } else {
+                seed = seedPart;
+            }
             
-            result = await handleSpreadRead(token, chooseParam);
+            // Parse query parameters from both URL search and hash
+            const urlParams = new URLSearchParams(search);
+            const hashParams = new URLSearchParams(hashQuery);
+            
+            // Priority: hash params > URL params
+            const chooseParam = hashParams.get('choose') || urlParams.get('choose');
+            
+            result = await handleSpreadRead(seed, chooseParam);
         } else {
-            // Default route
+            // Default route or invalid route
+            const currentUrl = window.location.href;
+            const isSpreadUrl = hash.startsWith('spread/');
+            
             result = JSON.stringify({
-                message: 'Tarot Reader API - GitHub Pages Compatible',
+                message: 'Tarot Reader API - Ultra Compact Edition',
+                ...(isSpreadUrl && {
+                    error: 'Invalid spread URL. Please check your seed or create a new spread.',
+                    troubleshooting: [
+                        'Seed may be corrupted or incomplete',
+                        'URL may have been modified',
+                        'Create a new spread to get a fresh seed'
+                    ]
+                }),
                 routes: [
                     '#create-spread - Create new tarot spread',
-                    '#spread/<token>?choose=0,1,2 - Read cards from spread'
+                    '#spread/<seed>?choose=0,1,2 - Read cards from spread'
                 ],
                 examples: [
                     'Try: ' + window.location.origin + window.location.pathname + '#create-spread',
-                    'Then: ' + window.location.origin + window.location.pathname + '#spread/YOUR_TOKEN?choose=0,1,2'
+                    'Then: ' + window.location.origin + window.location.pathname + '#spread/YOUR_SEED?choose=0,1,2'
                 ]
             });
         }
