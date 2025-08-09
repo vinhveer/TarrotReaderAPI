@@ -27,9 +27,10 @@
    #spread/<SEED>?choose=0,1,2
    ```
 
-   Example: `#spread/abc123def?choose=0,1,2`
-
-   Returns details for the selected cards.
+   **Output Options:**
+   - Default: `#spread/abc123?choose=0,1,2` (HTML formatted)
+   - Raw JSON: `#spread/abc123?choose=0,1,2&format=raw` (pure JSON)
+   - Download: `#spread/abc123?choose=0,1,2&download=true` (JSON file)
 
 ## API Reference
 
@@ -50,9 +51,14 @@
 
 ## Examples
 
+**HTML Display:**
 * **Single card**: `#spread/abc123?choose=0`
 * **Three cards**: `#spread/abc123?choose=0,1,2`
 * **Celtic Cross**: `#spread/abc123?choose=0,1,2,3,4,5,6,7,8,9`
+
+**Pure JSON Response:**
+* **Raw JSON**: `#spread/abc123?choose=0,1,2&format=raw`
+* **Download file**: `#spread/abc123?choose=0,1,2&download=true`
 
 ## Technical Overview
 

@@ -9,6 +9,28 @@
 let tarotData = null;
 
 /**
+ * Download JSON data as file
+ * @param {string} jsonString - JSON string to download
+ * @param {string} filename - filename for download
+ */
+function downloadJSON(jsonString, filename) {
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    // Clean up
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
+/**
  * Load tarot.json data
  * @returns {Promise<Object>} tarot data
  */
@@ -73,10 +95,13 @@ async function handleCreateSpread() {
         const spreadResult = createSpread();
         
         // Return response with seed directly (no JWT)
+        const baseUrl = `${window.location.origin}${window.location.pathname}`;
         const response = {
             seed: spreadResult.seed,
             deck_size: spreadResult.totalCards,
-            url: `${window.location.origin}${window.location.pathname}#spread/${spreadResult.seed}?choose=0,1,2`
+            url: `${baseUrl}#spread/${spreadResult.seed}?choose=0,1,2`,
+            download_url: `${baseUrl}#spread/${spreadResult.seed}?choose=0,1,2&download=true`,
+            raw_url: `${baseUrl}#spread/${spreadResult.seed}?choose=0,1,2&format=raw`
         };
         
         return JSON.stringify(response);
@@ -221,21 +246,55 @@ async function handleRouting() {
                 }),
                 routes: [
                     '#create-spread - Create new tarot spread',
-                    '#spread/<seed>?choose=0,1,2 - Read cards from spread'
+                    '#spread/<seed>?choose=0,1,2 - Read cards from spread (HTML)',
+                    '#spread/<seed>?choose=0,1,2&format=raw - Pure JSON response',
+                    '#spread/<seed>?choose=0,1,2&download=true - Download JSON file'
                 ],
                 examples: [
                     'Try: ' + window.location.origin + window.location.pathname + '#create-spread',
-                    'Then: ' + window.location.origin + window.location.pathname + '#spread/YOUR_SEED?choose=0,1,2'
+                    'HTML: ' + window.location.origin + window.location.pathname + '#spread/YOUR_SEED?choose=0,1,2',
+                    'JSON: ' + window.location.origin + window.location.pathname + '#spread/YOUR_SEED?choose=0,1,2&format=raw',
+                    'Download: ' + window.location.origin + window.location.pathname + '#spread/YOUR_SEED?choose=0,1,2&download=true'
                 ]
             });
         }
         
-        // Always output JSON to page
-        document.body.innerHTML = `<pre>${result}</pre>`;
+        // Check if user wants to download JSON file
+        const urlParams = new URLSearchParams(search);
+        const download = urlParams.get('download');
+        const format = urlParams.get('format');
+        
+        if (download === 'true') {
+            // Create and download JSON file
+            downloadJSON(result, `tarot-${Date.now()}.json`);
+            document.body.innerHTML = `<pre>JSON file downloaded!</pre>`;
+        } else if (format === 'raw') {
+            // Pure JSON response (no HTML wrapper)
+            document.body.textContent = result;
+            document.body.style.fontFamily = 'monospace';
+            document.body.style.whiteSpace = 'pre';
+        } else {
+            // Default: formatted JSON in HTML
+            document.body.innerHTML = `<pre>${result}</pre>`;
+        }
         
     } catch (error) {
         const errorResult = JSON.stringify({ error: error.message });
-        document.body.innerHTML = `<pre>${errorResult}</pre>`;
+        
+        const urlParams = new URLSearchParams(search);
+        const download = urlParams.get('download');
+        const format = urlParams.get('format');
+        
+        if (download === 'true') {
+            downloadJSON(errorResult, `tarot-error-${Date.now()}.json`);
+            document.body.innerHTML = `<pre>Error JSON file downloaded!</pre>`;
+        } else if (format === 'raw') {
+            document.body.textContent = errorResult;
+            document.body.style.fontFamily = 'monospace';
+            document.body.style.whiteSpace = 'pre';
+        } else {
+            document.body.innerHTML = `<pre>${errorResult}</pre>`;
+        }
     }
 }
 
