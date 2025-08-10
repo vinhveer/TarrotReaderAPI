@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
         // Generate href links from 1 to 72
         let cardLinks = '';
         for (let i = 1; i <= 72; i++) {
-            cardLinks += `<a href="${baseUrl}/api/html/create-spread/${i}?seed=${spreadResult.seed}">${i}</a> `;
+            cardLinks += `<a href="${baseUrl}/api/html/spread/${spreadResult.seed}?choose=${i}">${i}</a> `;
         }
         
         const html = `<!DOCTYPE html>
