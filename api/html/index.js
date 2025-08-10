@@ -23,32 +23,10 @@ module.exports = async (req, res) => {
         
         const html = `<!DOCTYPE html>
 <html>
-<head>
-    <title>Tarot Reader - HTML Interface</title>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .btn { display: inline-block; padding: 10px 20px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
-        .btn:hover { background: #45a049; }
-    </style>
-</head>
+<head><title>Tarot Reader</title></head>
 <body>
-    <h1>Tarot Reader - HTML Interface</h1>
-    
-    <h2>Chào mừng đến với Tarot Reader</h2>
-    <p>Bắt đầu tạo một spread mới để chọn các lá bài tarot.</p>
-    
-    <div>
-        <a href="${baseUrl}/api/html/create-spread" class="btn">Create Spread (Tạo Spread Mới)</a>
-    </div>
-    
-    <h3>Hướng dẫn sử dụng:</h3>
-    <ol>
-        <li>Click "Create Spread" để tạo spread mới</li>
-        <li>Chọn các số từ 1-72 để chọn lá bài</li>
-        <li>Tiếp tục cho đến khi hoàn thành việc chọn lá</li>
-    </ol>
-    
+    <h3>Tarot Reader</h3>
+    <p><a href="${baseUrl}/api/html/create-spread">Create Spread</a></p>
 </body>
 </html>`;
         
