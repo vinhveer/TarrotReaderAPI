@@ -50,13 +50,14 @@ module.exports = async (req, res) => {
                 
                 return {
                     position: cardIndex + 1,
-                    name: card.name
+                    name: card.name,
+                    orientation: cardData.orientation === 1 ? 'Upright' : 'Reversed'
                 };
             });
             
             // Only show card names when finish=true
             if (finish === 'true') {
-                cardResult = chosenCards.map(card => `${card.name}`).join('<br>');
+                cardResult = chosenCards.map(card => `${card.name} (${card.orientation})`).join('<br>');
             }
         }
         
